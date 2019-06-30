@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="utf-8" standalone="yes" ?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"
+  xmlns:xhtml="http://www.w3.org/1999/xhtml">
+  
+  <url>
+    <loc>http://aldrincai.github.io/</loc>
+    <lastmod>2019-03-24T00:00:00+00:00</lastmod>
+    <priority>0</priority>
+  </url>
+  
+  <url>
+    <loc>http://aldrincai.github.io/categories/</loc>
+    <lastmod>2019-03-24T00:00:00+00:00</lastmod>
+    <priority>0</priority>
+  </url>
+  
+  <url>
+    <loc>http://aldrincai.github.io/categories/ida/</loc>
+    <lastmod>2019-03-24T00:00:00+00:00</lastmod>
+    <priority>0</priority>
+  </url>
+  
+  <url>
+    <loc>http://aldrincai.github.io/post/ida-static-analysis-1/</loc>
+    <lastmod>2019-03-24T00:00:00+00:00</lastmod>
+  </url>
+  
+  <url>
+    <loc>http://aldrincai.github.io/post/</loc>
+    <lastmod>2019-03-24T00:00:00+00:00</lastmod>
+    <priority>0</priority>
+  </url>
+  
+  <url>
+    <loc>http://aldrincai.github.io/categories/%E9%80%86%E5%90%91/</loc>
+    <lastmod>2019-03-24T00:00:00+00:00</lastmod>
+    <priority>0</priority>
+  </url>
+  
+  <url>
+    <loc>http://aldrincai.github.io/tags/</loc>
+    <priority>0</priority>
+  </url>
+  
+</urlset>

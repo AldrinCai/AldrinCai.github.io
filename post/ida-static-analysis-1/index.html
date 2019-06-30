@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="en-us" dir="ltr">
+  <head>
+  <meta charset="utf-8" />
+  <meta http-equiv="x-ua-compatible" content="ie=edge">
+  <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+  <title>IDA 反汇编静态分析（一） &middot; Aldrin&#39;s Blog</title>
+  <meta name="description" content="" />
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/normalize/8.0.1/normalize.min.css" />
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.10.0/dist/katex.min.css" integrity="sha384-9eLZqc9ds8eNjO3TmqPeYcDj8n+Qfa4nuSiGYa6DjLNcv9BtN69ZIulL9+8CqC9Y" crossorigin="anonymous">
+  
+  
+  
+  
+  <link href="http://aldrincai.github.io/css/concated.min.css" rel="stylesheet">
+  
+  
+</head>
+
+  <body class="single-body">
+    <nav class="nav-bar side-padding">
+  <h1 class="nav-header"><a href="http://aldrincai.github.io/" class="nav-text">Aldrin&#39;s Blog</a></h1>
+  <div class="hamburger-menu">
+    <button onclick="hamburgerMenuPressed.call(this)" aria-haspopup="true" aria-expanded="false" aria-controls="menu" aria-label="Menu">
+      <span></span>
+      <span></span>
+    </button>
+    <ul id="menu" class="hamburger-menu-overlay">
+      <li><a href="http://aldrincai.github.io/" class="hamburger-menu-overlay-link">Home</a></li>
+      <li><a href="http://aldrincai.github.io/categories/ida" class="hamburger-menu-overlay-link">Ida</a></li><li><a href="http://aldrincai.github.io/categories/%E9%80%86%E5%90%91" class="hamburger-menu-overlay-link">逆向</a></li>
+    </ul>
+  </div>
+</nav>
+    <main class="content side-text-padding">
+      <article class="post dropcase">
+        <header class="post-header">
+        	<h1 class="post-title">IDA 反汇编静态分析（一）</h1>
+          <p class="post-date">Posted <time datetime="2019-03-24">Mar 24, 2019</time></p>
+        </header>
+        
+        <picture class="post-figure">
+            
+            <source srcset="https://i.postimg.cc/bNfvkP44/start.jpg">
+          <img src="https://i.postimg.cc/bNfvkP44/start.jpg" alt="">
+        </picture>
+        
+        
+
+<p>虽说一直在做 Android 逆向方面的事情，可也只是在 Java 层晃悠，接触过 SO 库也解决过相关的问题但都不是正面硬刚。自己也一直深知一个 Android 逆向高手需要有阅读反汇编的能力，未来的对抗在我来看肯定是在 SO 库和大数据两个方面。最近有机会接触这方面的事，也在这个过程中有一点点经验，写下来记录一下。
+<!-- more --></p>
+
+<h2 id="反汇编代码">反汇编代码</h2>
+
+<p>先看一下利用 IDA 打开 SO 文件找到关键函数之后按 F5 的反汇编代码：</p>
+
+<pre><code class="language-C">int __fastcall sub_3E3D8(const unsigned __int8 *a1, unsigned __int8 *a2, int a3)
+{
+  unsigned __int8 *v3; // r5
+  unsigned __int8 v5; // [sp+4h] [bp-24h]
+  __int16 v6; // [sp+6h] [bp-22h]
+
+  v3 = a2;
+  sub_42C78(a1, &amp;v5, a3);
+  memcpy(v3, &amp;v6, 8u);
+  return 0;
+}
+</code></pre>
+
+<p>大致说一下这个函数的分析结果，参数 <code>a1</code>传入Byte数组；参数<code>a2</code>是一个传出指针，也就是这个函数最终的结果；参数<code>a3</code>是传入Byte数组的长度。这个也是 C 语言很常见的函数方法，以一个传出指针作为函数的结果，所以这里需要重点分析的就是参数<code>a2</code>的赋值过程，也是这篇文章的重点。</p>
+
+<h2 id="代码分析">代码分析</h2>
+
+<p>可以很清楚的看到<code>v3</code>指向了<code>a2</code>的位置，接下来就要重点注意<code>v3</code>了。可需要注意的是如果没有这方面的经验接下来就很难看懂了，大致会是这样的一个分析结果，<code>sub_42C78</code>函数把参数1和参数3传入，再利用<code>v5</code>把结果传出，紧接着<code>memcpy</code>函数把<code>v6</code>的前八个字节复制给<code>v3</code>,这个函数就结束了自己的使命。乍一看<code>v5</code>和<code>v6</code>之间没有任何关联呀，我在刚接触的时候到这个地方也是很懵。其实它两之间是有关联的，现在需要分析的地方就是栈了，IDA 功能很强大，在函数开始的地方把栈的信息也分析出来了，需要做的就是利用这个信息画出栈的示意图，之后再进行分析就会豁然开朗。
+<img src="https://i.postimg.cc/KjLVhDH0/IDA.png" alt="IDA 栈示意图" />
+上面就大致模仿出了这个栈信息的示意图，这样一看<code>v5</code>和<code>v6</code>之间就会有很大的联系了，再一次从头分析，<code>sub_42C78</code>函数的计算结果存放在了<code>v5</code>指向的位置假设这个结果是&rsquo;012345678···&rsquo;至于后面到底有多少字节目前未知。<code>memcpy</code>函数将<code>v6</code>的前八个字节复制给了<code>v3</code>作为这个函数的最终值，在从图中看<code>v6</code>，<code>v6</code>指向的是<code>v5</code>的第三个字节。这样一看是不是清晰多了，这个函数做的事情就是将<code>sub_42C78</code>函数计算结果从第三个字节开始复制8个字节给<code>v3</code>作为最终值传出。</p>
+
+<h2 id="最后">最后</h2>
+
+<p>看完这个例子之后对于静态分析这种函数的基本思路就是先画出栈的示意图然后再慢慢进行分析，如果没有这一步的话分析就会很难继续进行下去。这虽然算不上是多么重要的经验，可对于一个刚接触反汇编的新手来说还是很重要的，不然会像我一开始一样寸步难行。记录一下，也希望对新手有点帮助。</p>
+
+      </article>
+      
+    </main>
+    <nav class="end-nav side-padding">
+      
+      <a ontouchstart="cardPressed.call(this)" ontouchend="cardReleased.call(this)" ontouchmove="cardReleased.call(this)" 
+  href="http://aldrincai.github.io/" class="card home-card" style="background-image: url( http://aldrincai.github.io/img/grey-cloud.jpg )" rel="bookmark" >
+  Home
+</a>
+    </nav>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/9.13.1/highlight.min.js"></script>
+<script defer src="https://cdn.jsdelivr.net/npm/katex@0.10.0/dist/katex.min.js" integrity="sha384-K3vbOmF2BtaVai+Qk37uypf7VrgBubhQreNQe9aGsz9lB63dIFiQVlJbr92dw2Lx" crossorigin="anonymous"></script>
+<script defer src="https://cdn.jsdelivr.net/npm/katex@0.10.0/dist/contrib/auto-render.min.js" integrity="sha384-kmZOZB5ObwgQnS/DuDg6TScgOiWWBiVt0plIRkZCmE6rDZGrEOQeHM5PcHi+nyqe" crossorigin="anonymous"
+    onload="renderMathInElement(document.body);"></script>
+  
+  <script src="http://aldrincai.github.io/js/core.min.js"></script>
+<script>
+  hljs.initHighlightingOnLoad();
+</script>
+
+  </body>
+</html>
