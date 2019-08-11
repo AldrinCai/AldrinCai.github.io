@@ -1,0 +1,217 @@
+<!DOCTYPE html>
+<html lang="en-us" dir="ltr">
+  <head>
+  <meta charset="utf-8" />
+  <meta http-equiv="x-ua-compatible" content="ie=edge">
+  <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+  <title>代理怎么工作 &middot; Aldrin&#39;s Blog</title>
+  <meta name="description" content="" />
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/normalize/8.0.1/normalize.min.css" />
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.10.0/dist/katex.min.css" integrity="sha384-9eLZqc9ds8eNjO3TmqPeYcDj8n+Qfa4nuSiGYa6DjLNcv9BtN69ZIulL9+8CqC9Y" crossorigin="anonymous">
+  
+  
+  
+  
+  <link href="https://aldrincai.github.io/css/concated.min.css" rel="stylesheet">
+  
+  <style>
+    body {
+      background: #ecedef url("https://aldrincai.github.io/img/ignasi_pattern_s.png") repeat;
+    }
+  </style>
+</head>
+
+  <body class="single-body">
+    <nav class="nav-bar side-padding">
+  <h1 class="nav-header"><a href="https://aldrincai.github.io/" class="nav-text">Aldrin</a></h1>
+  <div class="hamburger-menu">
+    <button onclick="hamburgerMenuPressed.call(this)" aria-haspopup="true" aria-expanded="false" aria-controls="menu" aria-label="Menu">
+      <span></span>
+      <span></span>
+    </button>
+    <ul id="menu" class="hamburger-menu-overlay">
+      <li><a href="https://aldrincai.github.io/" class="hamburger-menu-overlay-link">Home</a></li>
+      <li><a href="https://aldrincai.github.io/categories/%E7%BD%91%E7%BB%9C" class="hamburger-menu-overlay-link">网络</a></li><li><a href="https://aldrincai.github.io/categories/%E9%80%86%E5%90%91" class="hamburger-menu-overlay-link">逆向</a></li>
+    </ul>
+  </div>
+</nav>
+    <main class="content side-text-padding">
+      <article class="post dropcase">
+        <header class="post-header">
+        	<h1 class="post-title">代理怎么工作</h1>
+          <p class="post-date">Posted <time datetime="2019-08-11">Aug 11, 2019</time></p>
+        </header>
+        
+        <picture class="post-figure">
+            
+            <source srcset="https://i.postimg.cc/bNfvkP44/start.jpg">
+          <img src="https://i.postimg.cc/bNfvkP44/start.jpg" alt="">
+        </picture>
+        
+        
+
+<p>我一般抓包使用 Charles。最近在无意中发现了一个优秀的开源项目 <a href="https://github.com/mitmproxy/mitmproxy">Mitmproxy</a>，简单搭建就可以使用透明代理也支持 Python 脚本，这两点在我实践过后觉得 Mitmproxy 可能会变成我以后抓包的主力工具。虽说一直在使用抓包工具但对代理如何工作的过程始终存在疑惑，而 Mitmproxy 介绍如何进行代理的文档很优秀，对我而言有必要进行翻译记录一下。如果你英文水平不错的话可以直接去 <a href="https://mitmproxy.org/">Mitmproxy 官方网站</a>，避免因为我的英文水平对你造成误解。以下是关于如何代理的译文：
+<!-- more --></p>
+
+<h1 id="mitmproxy-如何工作">Mitmproxy 如何工作？</h1>
+
+<p>Mitmproxy 是一个非常灵活的工具。准确了解代理过程如何工作将有助于您创造性地部署它，并考虑 Mitmproxy 的一些基本假设以及如何解决这些假设。本文档详细介绍了 Mitmproxy 的代理机制，从最简单未加密的显式代理开始，最后介绍存在服务名称证明（Server Name Indication，在同一个 IP 地址上运行多个 SSL 证书）的情况下如何进行进行最复杂的交互，即透明代理 TLS 保护的流量。</p>
+
+<h2 id="显式-http">显式 HTTP</h2>
+
+<p>配置客户端使用 mitmproxy 作为显式代理是拦截流量的最简单，最可靠的方法。代理协议在 HTTP RFC 中编码，因此客户端和服务器的行为都已明确定义，并且通常是可靠的。在与 Mitmproxy 最简单的交互中，客户端直接连接到代理，并发出如下所示的请求：</p>
+
+<pre><code>GET http://example.com/index.html HTTP/1.1
+</code></pre>
+
+<p>这是一个代理GET请求 - 包含模式和主机规范的标准的 HTTP GET 请求的扩展形式，它包含了mitmproxy需要继续执行的所有信息。
+&gt; 注：原文使用了 the vanilla HTTP GET request， Vanilla 是香草的意思， 特地查了一下 ，在计算机领域，很多人用 Vanilla 表示标准的，基础的，没有扩展的。所以这里翻译成标准的。</p>
+
+<p><img src="https://docs.mitmproxy.org/stable/schematics/how-mitmproxy-works-explicit.png" alt="image" /></p>
+
+<ol>
+<li>客户端连接到代理并发出请求。</li>
+<li>Mitmproxy 连接到上游服务器并简单地转发请求。</li>
+</ol>
+
+<h2 id="显式-https">显式 HTTPS</h2>
+
+<p>显示代理的 HTTPS 连接的过程完全不同。客户端连接到代理并发出如下所示的请求：</p>
+
+<pre><code>CONNECT example.com:443 HTTP/1.1
+</code></pre>
+
+<p>传统代理既不能查看也不能操纵 TLS 加密的数据流，因此 CONNECT 请求只是要求代理在客户端和服务器之间打开管道。这里的代理只是一个促进者 - 它在不知道任何内容的情况下盲目地向两个方向转发数据。TLS 连接的协商过程（握手）发生在此管道上，后续的请求和响应流对代理完全不透明。</p>
+
+<h3 id="mitmproxy-中的中间人攻击">Mitmproxy 中的中间人攻击</h3>
+
+<p>这是 Mitmproxy 的基本骗术发挥作用的地方。名称中的 MITM 代表中间人攻击（Man-In-The-Middle） &ndash; 我们可以参考 中间人攻击的方式来拦截和干扰这些理论上不透明数据流的过程。基本的想法是假装成客户端的服务器，假装是服务器的客户端，而我们坐在中间解码来自双方的流量。棘手的部分是证书颁发机构系统（Certificate Authority system）旨在通过允许受信任的第三方以加密方式签署服务器的证书来验证它们是否合法来防止这种攻击。如果此签名与非信任方不匹配或来自非信任方，则安全客户端将断开连接并拒绝继续。 尽管 CA 系统存在许多缺点，但对于尝试使用中间人攻击来分析 TLS 连接通常是很致命的（译者注：TLS 一大目的就是为了防止进行中间人攻击的）。我们对这个难题的回答是成为一个值得信赖的证书颁发机构。Mitmproxy 包括一个完整的 CA 实现，可以动态生成拦截证书。 为了让客户端信任这些证书，我们将 Mitmproxy 作为受信任的 CA 手动注册。</p>
+
+<h3 id="难题1-什么是远程主机名">难题1：什么是远程主机名？</h3>
+
+<p>要继续执行此计划，我们需要知道要在拦截证书中使用的域名 - 客户端将验证证书是否适用于它所连接的域，如果不是这样，则中止。乍一看，上面的 CONNECT 请求似乎给了我们所需要的一切 - 在这个例子中，这两个值都是 “example.com” 。但是，如果客户端启动连接的方式如下所示：</p>
+
+<pre><code>CONNECT 10.1.1.1:443 HTTP/1.1
+</code></pre>
+
+<p>使用 IP 地址是完全合法的，因为它为我们提供了足够的信息来启动管道，即使它没有显示远程主机名。Mitmproxy 有一个狡猾的机制，可以平滑过度这个上游的证书嗅探。一旦我们看到 CONNECT 请求，我们就会暂停对话的客户端部分，并启动与服务器的同时连接。我们完成与服务器的 TLS 握手，并检查它使用的证书。现在，我们使用上游证书中的 Common Name 为客户端生成虚拟证书。瞧，即使从未指定过，我们也会向客户提供正确的主机名。</p>
+
+<h3 id="难题2-san-扩展">难题2：SAN 扩展</h3>
+
+<blockquote>
+<p>注：<a href="http://liaoph.com/openssl-san/">SAN 是什么？</a></p>
+</blockquote>
+
+<p>进入下一个难题。有时，证书 Common Name 实际上不是客户端连接到的主机名。这是因为证书中的可选主机备用名称字段允许指定任意数量的备用域。如果预期域与其中任何域匹配，则客户端将继续，即使域与证书 CN 不匹配。答案很简单：当我们从上游证书中提取CN时，我们还提取SAN，并将它们添加到生成的虚拟证书中。</p>
+
+<h3 id="难题3-sni">难题3：SNI</h3>
+
+<blockquote>
+<p>注：<a href="https://shixinzhang.top/2018/03/22/what-is-sni/#sni-%E5%9C%A8%E5%90%8C%E4%B8%80%E4%B8%AA-ip-%E5%9C%B0%E5%9D%80%E4%B8%8A%E8%BF%90%E8%A1%8C%E5%A4%9A%E4%B8%AA-ssl-%E8%AF%81%E4%B9%A6">SNI 是什么？</a></p>
+</blockquote>
+
+<p>标准的 TLS 一大缺点是每个证书都需要自己的 IP 地址。这意味着您无法进行虚拟主机，其中具有独立证书的多个域共享相同的 IP 地址。在 IPv4 地址池快速缩小的世界中，这是一个问题，我们有一个解决方案，其形式为 TLS 协议的服务器添加 SNI。这使客户端可以在 TLS 握手开始时指定远程服务器名称，然后让服务器选择正确的证书来完成该过程。SNI 打破了我们的上游证书嗅探过程，因为当我们在不使用 SNI 的情况下进行连接时，我们会获得一个默认证书，该证书可能与客户端所期望的证书无关。该解决方案是客户端连接过程的另一个棘手的复杂问题。在客户端连接之后，我们允许 TLS 握手继续，直到 SNI 值传递给我们之后。现在我们可以暂停对话，并使用正确的 SNI 值启动上游连接，然后为我们提供正确的上游证书，我们可以从中提取预期的 CN 和 SAN。</p>
+
+<h3 id="把它们结合在一起">把它们结合在一起</h3>
+
+<p>让我们将所有这些放在完全显式代理的 HTTPS 流中。</p>
+
+<p><img src="https://docs.mitmproxy.org/stable/schematics/how-mitmproxy-works-explicit-https.png" alt="image" /></p>
+
+<ol>
+<li>客户端建立与 Mitmproxy 的连接，并发出 HTTP CONNECT 请求。</li>
+<li>Mitmproxy 响应 200 连接已建立，就像它已设置 CONNECT 管道一样。</li>
+<li>客户端认为它正在与远程服务器通信，并启动 TLS 连接。 它使用 SNI 来指示它连接的主机名。</li>
+<li>Mitmproxy 连接到服务器，并使用客户端指示的 SNI 主机名建立 TLS 连接。</li>
+<li>服务器使用匹配的证书进行响应，该证书包含生成拦截证书所需的 CN 和 SAN 值。</li>
+<li>Mitmproxy 生成拦截证书，并继续在步骤3中暂停客户端 TLS 握手。
+客户端通过已建立的 TLS 连接发送请求。</li>
+<li>客户端通过已建立的 TLS 连接发送请求。</li>
+<li>Mitmproxy 通过在步骤4中启动的 TLS 连接将请求传递给服务器。</li>
+</ol>
+
+<h2 id="透明的-http">透明的 HTTP</h2>
+
+<p>使用透明代理时，连接将重定向到网络层的代理，而无需任何客户端配置。这使得透明代理非常适合那些无法改变客户端行为的情况 - 代理那些不走代理 Android 应用程序是一个常见的例子。</p>
+
+<p>为实现这一目标，我们需要引入两个额外的组件。第一种是重定向机制，它透明地将发往网络上目标服务器的 TCP 连接重新路由到侦听代理服务器。这通常采用与代理服务器相同的主机上的防火墙形式 -  Linux 上的 iptables 或 OSX 上的 pf。 一旦客户端启动了连接，它就会产生一个标准的 HTTP 请求，可能看起来像这样：</p>
+
+<pre><code>GET /index.html HTTP/1.1
+</code></pre>
+
+<p>请注意，此请求与显式代理变体不同，因为它省略了方案和主机名。那么，我们如何知道将请求转发到哪个上游主机?已执行重定向的路由机制会跟踪我们的原始目标。每种路由机制都有不同的方式来公开这些数据，因此这引入了工作透明代理所需的第二个组件：一个知道如何从路由器检索原始目标地址的主机模块。在 Mitmproxy 中，这采用内置的一组模块的形式，这些模块知道如何与每个平台的重定向机制进行通信。一旦我们掌握了这些信息，这个过程就相当简单。</p>
+
+<p><img src="https://docs.mitmproxy.org/stable/schematics/how-mitmproxy-works-transparent.png" alt="image" /></p>
+
+<ol>
+<li>客户端建立与服务器的连接。</li>
+<li>路由器将连接重定向到 Mitmproxy，后者通常侦听同一主机的本地端口。 然后，Mitmproxy 参考路由机制来确定原始目的地是什么。</li>
+<li>现在，我们只是阅读客户的请求&hellip;&hellip;</li>
+<li>&hellip;&hellip;并向上游转发。</li>
+</ol>
+
+<h3 id="透明的-https">透明的 https</h3>
+
+<p>第一步是确定是否应将传入连接视为HTTPS。这样做的机制很简单我们使用路由机制来找出原始目标端口是什么。所有传入连接都通过不同的层，这可以确定要使用的实际协议。通过在每个连接的开头查找 ClientHello 消息，自动 TLS 检测适用于 SSLv3，TLS 1.0，TLS 1.1 和 TLS 1.2。这与使用的 TCP 端口无关。</p>
+
+<p>从这里开始，该过程是我们描述的用于透明代理 HTTP 和显式代理 HTTPS 的方法的合并。我们使用路由机制来建立上游服务器地址，然后继续进行显式  HTTPS 连接以建立 CN 和 SAN，并应对 SNI。</p>
+
+<p><img src="https://docs.mitmproxy.org/stable/schematics/how-mitmproxy-works-transparent-https.png" alt="image" /></p>
+
+<ol>
+<li>客户端建立与服务器的连接。</li>
+<li>路由器将连接重定向到 mitmproxy，后者通常侦听同一主机的本地端口。然后，Mitmproxy 参考路由机制来确定原始目的地是什么。</li>
+<li>客户端认为它正在与远程服务器通信，并启动 TLS 连接。它使用 SNI 来指示它连接的主机名。</li>
+<li>Mitmproxy 连接到服务器，并使用客户端指示的 SNI 主机名建立 TLS 连接。</li>
+<li>服务器使用匹配的证书进行响应，该证书包含生成拦截证书所需的 CN 和 SAN 值。</li>
+<li>Mitmproxy 生成拦截证书，并继续在步骤3中暂停客户端 TLS 握手。</li>
+<li>客户端通过已建立的 TLS 连接发送请求。</li>
+<li>Mitmproxy 通过在步骤4中启动的 TLS 连接将请求传递给服务器。</li>
+</ol>
+
+<p>译文完。</p>
+
+      </article>
+      
+    </main>
+    <nav class="end-nav side-padding">
+      
+      <a ontouchstart="cardPressed.call(this)" ontouchend="cardReleased.call(this)" ontouchmove="cardReleased.call(this)" 
+  href="https://aldrincai.github.io/post/ida-static-analysis-1/" class="card blog-card" rel="bookmark" >
+    
+    <div class="card-img-container">
+      <p class="card-img-overlay">Next Article</p>
+      <picture>
+        
+        <source srcset="https://i.postimg.cc/bNfvkP44/start.jpg">
+        <img src="https://i.postimg.cc/bNfvkP44/start.jpg" class="card-img" alt="">
+      </picture>
+    </div>
+    
+  <article class="card-body">
+    <h2 class="card-title">IDA 反汇编静态分析（一）</h2>
+    <p class="card-text"></p>
+    <div class="card-subtext muted-text">
+      <p>Posted <time datetime="2019-03-24 324:00">Mar 24, 2019</time></p>
+      <p>#逆向 </p>
+    </div>
+  </article>
+</a>
+      
+      <a ontouchstart="cardPressed.call(this)" ontouchend="cardReleased.call(this)" ontouchmove="cardReleased.call(this)" 
+  href="https://aldrincai.github.io/" class="card home-card" style="background-image: url( https://aldrincai.github.io/img/grey-cloud.jpg )" rel="bookmark" >
+  Home
+</a>
+    </nav>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/9.13.1/highlight.min.js"></script>
+<script defer src="https://cdn.jsdelivr.net/npm/katex@0.10.0/dist/katex.min.js" integrity="sha384-K3vbOmF2BtaVai+Qk37uypf7VrgBubhQreNQe9aGsz9lB63dIFiQVlJbr92dw2Lx" crossorigin="anonymous"></script>
+<script defer src="https://cdn.jsdelivr.net/npm/katex@0.10.0/dist/contrib/auto-render.min.js" integrity="sha384-kmZOZB5ObwgQnS/DuDg6TScgOiWWBiVt0plIRkZCmE6rDZGrEOQeHM5PcHi+nyqe" crossorigin="anonymous"
+    onload="renderMathInElement(document.body);"></script>
+  
+  <script src="https://aldrincai.github.io/js/core.min.js"></script>
+<script>
+  hljs.initHighlightingOnLoad();
+</script>
+
+  </body>
+</html>
